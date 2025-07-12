@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { DndContext, closestCorners } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { Bar } from "react-chartjs-2";
 import "chart.js/auto";
 import { toast, ToastContainer } from "react-toastify";
@@ -19,7 +22,8 @@ const UserDashboard = () => {
 
   const [notes, setNotes] = useState(localStorage.getItem("notes") || "");
   const audioRef = useRef(new Audio(notificationSound));
-
+  const [filter, setFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   // 🔹 Ensure page starts from top when component loads
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -29,7 +33,9 @@ const UserDashboard = () => {
     const storedTasks = JSON.parse(localStorage.getItem("tasks")) || [];
     const categorizedTasks = {
       "To Do": storedTasks.filter((task) => task.progress <= 40),
-      "In Progress": storedTasks.filter((task) => task.progress > 40 && task.progress <= 80),
+      "In Progress": storedTasks.filter(
+        (task) => task.progress > 40 && task.progress <= 80
+      ),
       Completed: storedTasks.filter((task) => task.progress > 80),
     };
     setTasks(categorizedTasks);
@@ -48,16 +54,24 @@ const UserDashboard = () => {
 
     tasks.forEach((task) => {
       if (task.deadline === today) {
-        showNotification(`🚨 Task Due Today: "${task.title}"`, "bg-red-500 text-white");
+        showNotification(
+          `🚨 Task Due Today: "${task.title}"`,
+          "bg-red-500 text-white"
+        );
       } else if (task.deadline === tomorrowStr) {
-        showNotification(`⏳ Task Due Tomorrow: "${task.title}"`, "bg-yellow-500 text-black");
+        showNotification(
+          `⏳ Task Due Tomorrow: "${task.title}"`,
+          "bg-yellow-500 text-black"
+        );
       }
     });
   };
 
   const showNotification = (message, bgClass) => {
     toast(
-      <div className={`p-2 rounded-lg shadow-md font-semibold text-lg ${bgClass}`}>
+      <div
+        className={`p-2 rounded-lg shadow-md font-semibold text-lg ${bgClass}`}
+      >
         {message}
       </div>,
       { position: "top-right", autoClose: 5000, hideProgressBar: false }
@@ -72,20 +86,37 @@ const UserDashboard = () => {
     const sourceColumn = Object.keys(tasks).find((column) =>
       tasks[column].some((task) => task.id === active.id)
     );
-    const targetColumn = Object.keys(tasks).find((column) => tasks[column].some((task) => task.id === over.id)) || over.id;
+    const targetColumn =
+      Object.keys(tasks).find((column) =>
+        tasks[column].some((task) => task.id === over.id)
+      ) || over.id;
 
     if (!sourceColumn || !targetColumn || sourceColumn === targetColumn) return;
 
     setTasks((prevTasks) => {
       const updatedTasks = { ...prevTasks };
-      const movedTask = updatedTasks[sourceColumn].find((task) => task.id === active.id);
-      updatedTasks[sourceColumn] = updatedTasks[sourceColumn].filter((task) => task.id !== active.id);
-      updatedTasks[targetColumn] = [...(updatedTasks[targetColumn] || []), movedTask];
+      const movedTask = updatedTasks[sourceColumn].find(
+        (task) => task.id === active.id
+      );
+      updatedTasks[sourceColumn] = updatedTasks[sourceColumn].filter(
+        (task) => task.id !== active.id
+      );
+      updatedTasks[targetColumn] = [
+        ...(updatedTasks[targetColumn] || []),
+        movedTask,
+      ];
 
       return updatedTasks;
     });
 
-    localStorage.setItem("tasks", JSON.stringify([...tasks["To Do"], ...tasks["In Progress"], ...tasks["Completed"]]));
+    localStorage.setItem(
+      "tasks",
+      JSON.stringify([
+        ...tasks["To Do"],
+        ...tasks["In Progress"],
+        ...tasks["Completed"],
+      ])
+    );
   };
 
   // Task Analytics Chart Data (Bar Graph)
@@ -104,6 +135,29 @@ const UserDashboard = () => {
     ],
   };
 
+  // Filter and search logic
+
+  const filteredTasks = Object.keys(tasks).reduce((acc, column) => {
+    let filteredColumn = tasks[column];
+    if (filter !== "All") {
+      filteredColumn = filteredColumn.filter(
+        (task) =>
+          (filter === "Completed" && task.progress > 80) ||
+          (filter === "In Progress" &&
+            task.progress > 40 &&
+            task.progress <= 80) ||
+          (filter === "To Do" && task.progress <= 40)
+      );
+    }
+    if (searchQuery) {
+      filteredColumn = filteredColumn.filter((task) =>
+        task.title.toLowerCase().includes(searchQuery.toLocaleLowerCase())
+      );
+    }
+    acc[column] = filteredColumn;
+    return acc;
+  }, {});
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-100 to-gray-100">
       <UserSidebar />
@@ -112,16 +166,53 @@ const UserDashboard = () => {
         <h2 className="text-4xl font-bold text-gray-900 mb-6 text-center bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
           🚀 User Dashboard
         </h2>
+
         <ToastContainer position="top-right" autoClose={5000} hideProgressBar />
+
+        {/* Show filter and search bar in dashboard */}
+        <div className="flex justify-between gap-4 mb-6">
+          <div className="flex items-center space-x-4 w-full sm:w-auto">
+            {/* Dropdown */}
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="p-3 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 w-full sm:w-[150px]"
+            >
+              <option value="All">All Tasks</option>
+              <option value="To Do">To Do</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+            {/* search bar */}
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="p-3 pl-4 pr-10 bg-white border border-gray-300 text-gray-700 rounding-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 w-full sm:w-[250px]"
+            />
+          </div>
+        </div>
 
         {/* Kanban Board */}
         <div className="glassmorphism p-4 rounded-xl shadow-lg bg-gradient-to-br from-white/30 to-white/10 backdrop-blur-lg border border-white/20">
-          <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+          <DndContext
+            collisionDetection={closestCorners}
+            onDragEnd={handleDragEnd}
+          >
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.keys(tasks).map((columnKey) => (
-                <Column key={columnKey} title={columnKey} id={columnKey} className="w-[280px]">
-                  <SortableContext items={tasks[columnKey].map((task) => task.id)} strategy={verticalListSortingStrategy}>
-                    {tasks[columnKey].map((task) => (
+              {Object.keys(filteredTasks).map((columnKey) => (
+                <Column
+                  key={columnKey}
+                  title={columnKey}
+                  id={columnKey}
+                  className="w-[280px]"
+                >
+                  <SortableContext
+                    items={filteredTasks[columnKey].map((task) => task.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {filteredTasks[columnKey].map((task) => (
                       <SortableItem key={task.id} id={task.id} task={task} />
                     ))}
                   </SortableContext>
@@ -143,7 +234,9 @@ const UserDashboard = () => {
 
           {/* Notes */}
           <div className="p-6 w-full lg:w-[590px] bg-green-900 text-white rounded-xl border-[12px] border-[#8B4501] shadow-lg flex flex-col">
-            <h2 className="text-2xl font-bold text-yellow-400 mb-2 text-center">📌 Notes</h2>
+            <h2 className="text-2xl font-bold text-yellow-400 mb-2 text-center">
+              📌 Notes
+            </h2>
 
             {/* Notes Input Field - Enlarged to match Task Analytics */}
             <textarea
